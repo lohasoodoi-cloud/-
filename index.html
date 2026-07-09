@@ -210,6 +210,7 @@ function escHtml(s){ return (s==null?'':s).toString().replace(/[&<>"]/g,c=>({'&'
 
 const RCS300 = (() => {
   let device=null, epOut=0, epIn=0, iface=0, seq=0;
+  const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
   function frame(payload){ const len=payload.length;
     const head=toBytes([0x6b,len&0xff,(len>>8)&0xff,(len>>16)&0xff,(len>>24)&0xff,0x00,(seq++)&0xff,0x00,0x00,0x00]);
     return concat(head,payload); }
@@ -231,20 +232,30 @@ const RCS300 = (() => {
     if(!epIn||!epOut) throw new Error('バルクエンドポイント未検出（RC-S300以外の可能性）');
     await device.claimInterface(iface);
     log('接続 PID=0x'+device.productId.toString(16)+' iface='+iface+' in='+epIn+' out='+epOut);
-    await send(ctrl([0xff,0x50,0x00,0x00,0x02,0x81,0x00,0x00,0x00]));
-    await send(ctrl([0xff,0x50,0x00,0x00,0x02,0x83,0x00,0x00,0x00]));
-    await send(ctrl([0xff,0x50,0x00,0x00,0x02,0x84,0x00,0x00,0x00]));
+    const okSW=(r)=>{ return r.length>=2 && r[r.length-2]===0x90 && r[r.length-1]===0x00; };
+    let r1=await send(ctrl([0xff,0x50,0x00,0x00,0x02,0x81,0x00,0x00])); log(okSW(r1)?'セッション開始OK':'セッション開始NG');
+    let r2=await send(ctrl([0xff,0x50,0x00,0x00,0x02,0x83,0x00,0x00]));
+    await sleep(50);
+    let r3=await send(ctrl([0xff,0x50,0x00,0x00,0x02,0x84,0x00,0x00])); log(okSW(r3)?'電波ON OK':'電波ON NG');
+    await sleep(150);
     return device; }
   function extractFelica(resp){ for(let i=0;i<resp.length-1;i++){ if(resp[i]===0x97){ const len=resp[i+1]; return resp.slice(i+2,i+2+len);} } return null; }
-  async function pollingSuica(){ const resp=await send(thru(toBytes([0x06,0x00,0x00,0x03,0x01,0x00])));
-    const fr=extractFelica(resp); if(!fr||fr[1]!==0x01) throw new Error('ポーリング失敗（Suicaを載せてください）');
-    const idm=fr.slice(2,10); log('IDm:',hex(idm)); return idm; }
+  async function pollingSuica(){
+    let lastResp=null;
+    for(let attempt=0; attempt<60; attempt++){
+      const resp=await send(thru(toBytes([0x06,0x00,0x00,0x03,0x01,0x00]))); lastResp=resp;
+      const fr=extractFelica(resp);
+      if(fr && fr[1]===0x01){ const idm=fr.slice(2,10); log('IDm:',hex(idm),'(試行'+(attempt+1)+'回目で検出)'); return idm; }
+      await sleep(100);
+    }
+    throw new Error('ポーリング失敗（Suicaを載せてください）');
+  }
   async function readBlock(idm,n){ const cmd=concat(toBytes([0x10,0x06]),idm,toBytes([0x01,0x0f,0x09,0x01,0x80,n]));
     const resp=await send(thru(cmd)); const fr=extractFelica(resp);
-    if(!fr||fr[1]!==0x07||fr[2]!==0x00||fr[3]!==0x00) return null; return fr.slice(5,5+16); }
+    if(!fr||fr[1]!==0x07||fr[10]!==0x00||fr[11]!==0x00) return null; return fr.slice(13,13+16); }
   async function readHistory(){ const idm=await pollingSuica(); const blocks=[];
     for(let b=0;b<20;b++){ const blk=await readBlock(idm,b); if(!blk) break; blocks.push(blk); log('block '+b+':',hex(blk)); } return {idm,blocks}; }
-  async function disconnect(){ try{await send(ctrl([0xff,0x50,0x00,0x00,0x02,0x82,0x00,0x00,0x00]));}catch(e){} try{await device.close();}catch(e){} device=null; }
+  async function disconnect(){ try{await send(ctrl([0xff,0x50,0x00,0x00,0x02,0x82,0x00,0x00]));}catch(e){} try{await device.close();}catch(e){} device=null; }
   return { connect, readHistory, disconnect };
 })();
 
