@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>交通費精算システム（Web版 / RC-S300 かざすだけ）</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --orange-dark:#C2511A; --orange-light:#FBE8D8; --orange-tint:#FDF5F0;
+    --green-dark:#2E6B2A;  --green-light:#E4F0E3;
+    --manual-bg:#EAF3FF;   --blue:#1A5FA8;
+    --ink:#222; --gray:#666; --line:#D8CEC6; --bg:#F7F2ED;
+    --ok:#2E6B2A; --danger:#B00020;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{font-family:"BIZ UDPGothic",system-ui,sans-serif;color:var(--ink);background:var(--bg);line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1140px;margin:0 auto;padding:20px 18px 90px}
+  header{display:flex;align-items:center;gap:14px;padding:8px 2px 18px}
+  .logo{width:44px;height:44px;border-radius:12px;flex:0 0 auto;background:linear-gradient(135deg,var(--orange-dark),#E0762F);display:grid;place-items:center;color:#fff;font-weight:700;font-size:20px;box-shadow:0 3px 10px rgba(194,81,26,.28)}
+  header h1{font-size:19px;margin:0;letter-spacing:.02em}
+  header p{margin:2px 0 0;font-size:12.5px;color:var(--gray)}
+  .hero{background:#fff;border:1px solid var(--line);border-radius:18px;padding:22px;display:grid;grid-template-columns:200px 1fr;gap:24px;align-items:center}
+  .target{position:relative;width:180px;height:180px;margin:auto;border-radius:50%;display:grid;place-items:center;text-align:center;background:radial-gradient(circle at 50% 45%,#fff,#f3ebe4);border:2px dashed var(--line);color:var(--gray);transition:.3s}
+  .target .icon{font-size:40px;line-height:1}
+  .target .lbl{font-size:12px;margin-top:6px;padding:0 12px}
+  .target .ring{position:absolute;inset:-6px;border-radius:50%;border:3px solid transparent}
+  body.connected .target{border-color:var(--green-dark);color:var(--green-dark);background:radial-gradient(circle at 50% 45%,#fff,var(--green-light))}
+  body.reading .target{border-style:solid;border-color:var(--orange-dark);color:var(--orange-dark)}
+  body.reading .target .ring{border-color:var(--orange-dark);animation:pulse 1.1s ease-out infinite}
+  @keyframes pulse{0%{transform:scale(1);opacity:.7}100%{transform:scale(1.18);opacity:0}}
+  .hero .cta h2{margin:0 0 4px;font-size:17px}
+  .hero .cta p{margin:0 0 14px;font-size:13px;color:var(--gray)}
+  .btn{appearance:none;border:0;border-radius:10px;padding:11px 18px;font:inherit;font-weight:700;cursor:pointer;transition:.15s;font-size:14px}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .btn-primary{background:var(--orange-dark);color:#fff}.btn-primary:hover:not(:disabled){background:#a8430f}
+  .btn-ghost{background:#fff;color:var(--orange-dark);border:1.5px solid var(--orange-dark)}.btn-ghost:hover:not(:disabled){background:var(--orange-tint)}
+  .btn-green{background:var(--green-dark);color:#fff}.btn-green:hover:not(:disabled){background:#245321}
+  .btn-row{display:flex;gap:10px;flex-wrap:wrap}
+  .small{font-size:12px;padding:8px 12px}
+  .note{font-size:12px;color:var(--gray);margin-top:10px}
+  .status-pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;padding:3px 10px;border-radius:99px;background:var(--orange-light);color:var(--orange-dark)}
+  body.connected .status-pill{background:var(--green-light);color:var(--green-dark)}
+  .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:18px 20px;margin-top:18px}
+  .card h3{margin:0 0 14px;font-size:15px;display:flex;align-items:center;gap:8px}
+  .card h3 .n{width:22px;height:22px;border-radius:6px;background:var(--green-dark);color:#fff;font-size:12px;display:grid;place-items:center;flex:0 0 auto}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px 16px}
+  .field label{display:block;font-size:12px;font-weight:700;color:var(--gray);margin-bottom:4px}
+  .field input,.field select{width:100%;padding:9px 10px;border:1px solid var(--line);border-radius:8px;font:inherit;background:#fff;color:var(--ink)}
+  .field input:focus,.field select:focus{outline:2px solid var(--orange-light);border-color:var(--orange-dark)}
+  .banner{border-radius:10px;padding:10px 14px;font-size:13px;margin-top:12px;display:none}
+  .banner.ok{display:block;background:var(--green-light);color:var(--green-dark)}
+  .banner.bad{display:block;background:#FCE8E6;color:var(--danger);border:1px solid #f3b7b1}
+  .bulk{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:var(--orange-tint);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+  .bulk select{padding:7px 9px;border:1px solid var(--line);border-radius:8px;font:inherit}
+  .bulk .sel-count{font-size:12px;color:var(--gray)}
+  .spacer{flex:1}
+  .tbl-wrap{overflow-x:auto;margin-top:6px}
+  table{border-collapse:collapse;width:100%;font-size:13px;min-width:940px}
+  th,td{border:1px solid var(--line);padding:6px 8px;text-align:center;white-space:nowrap}
+  thead th{background:var(--green-dark);color:#fff;font-size:12px;font-weight:700}
+  tbody tr:nth-child(even){background:var(--orange-tint)}
+  tbody tr.manual{background:var(--manual-bg)}
+  tbody tr.excluded{opacity:.45}
+  td.edit{padding:0}
+  td.edit input{width:100%;border:0;padding:6px 8px;font:inherit;text-align:inherit;background:transparent}
+  td.edit input:focus{outline:2px solid var(--orange-light)}
+  td .co-select{width:100%;border:1px solid var(--line);border-radius:6px;padding:4px;font:inherit;font-size:12px;background:#fff}
+  .src-suica{color:var(--ink)}.src-manual{color:var(--blue);font-weight:700}
+  .del{color:var(--danger);cursor:pointer;font-weight:700;border:0;background:none;font-size:15px}
+  .tg{padding:3px 10px;border-radius:12px;font-size:12px;font-weight:700;border:none;cursor:pointer}
+  .tg.on{background:#F0F4EF;color:#4A6741}.tg.off{background:#f0f0f0;color:#999}
+  tfoot td{background:var(--orange-light);font-weight:700;color:var(--orange-dark)}
+  tfoot td.total{text-align:right;font-size:15px}
+  .co-badge{display:inline-block;padding:2px 7px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap}
+  .co-0{background:#e8f0fb;color:#2C3E6B}.co-1{background:#e8f4e7;color:#2E6B2A}
+  .co-2{background:#fbe8d8;color:#C2511A}.co-3{background:#f3e8fb;color:#6B2E8A}
+  .co-none{background:#f0f0f0;color:#999}
+  .co-check{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#fff;border:1px solid var(--line);border-radius:8px;margin-bottom:8px}
+  .co-check input[type=checkbox]{width:18px;height:18px;cursor:pointer}
+  .co-check label{font-size:14px;font-weight:700;cursor:pointer;flex:1}
+  .co-check .cc-count{font-size:12px;color:#888}
+  .co-check .cc-amount{font-size:14px;font-weight:700;color:var(--orange-dark)}
+  #coHint{font-size:12px;margin-top:4px}
+  .allmode{background:var(--green-light);border:1px solid #c8d8c4;border-radius:8px;padding:12px 16px;font-size:13px;color:#3f5c37}
+  details.log{margin-top:14px}
+  details.log summary{cursor:pointer;font-size:12px;color:var(--gray);font-weight:700}
+  #log{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:11px;background:#1b1b1b;color:#c8e6c9;padding:12px;border-radius:8px;max-height:220px;overflow:auto;white-space:pre-wrap;margin-top:8px}
+  .hidden{display:none!important}
+  @media(max-width:640px){.hero{grid-template-columns:1fr}.grid{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">団</div>
+    <div>
+      <h1>交通費精算システム <span style="font-size:12px;color:var(--gray);font-weight:400">Web版</span></h1>
+      <p>RC-S300 にかざすだけ。1区間ごとに請求法人を選べます。</p>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="target" id="target">
+      <div class="ring"></div>
+      <div><div class="icon">🚃</div><div class="lbl" id="targetLbl">カード未読取</div></div>
+    </div>
+    <div class="cta">
+      <span class="status-pill" id="statusPill">● リーダー未接続</span>
+      <h2>Suica / PASMO を読み取る</h2>
+      <p>PaSoRi（RC-S300）にカードを載せて「かざして読取」。リーダーが無い場合は CSV でも取り込めます。</p>
+      <div class="btn-row">
+        <button class="btn btn-primary" id="btnRead">かざして読取（RC-S300）</button>
+        <button class="btn btn-ghost small" id="btnCsv">CSVから取り込む</button>
+      </div>
+      <input type="file" id="csvFile" accept=".csv" class="hidden">
+      <div class="note" id="envNote"></div>
+    </div>
+  </section>
+
+  <div class="banner" id="integrity"></div>
+
+  <section class="card">
+    <h3><span class="n">1</span>申請者情報</h3>
+    <div class="grid">
+      <div class="field"><label>氏名</label><input id="empName" placeholder="山田 太郎"></div>
+      <div class="field"><label>所属部署</label><input id="dept" placeholder="○○事業所"></div>
+      <div class="field">
+        <label>精算期間</label>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input type="date" id="periodFrom"><span style="color:var(--gray)">〜</span><input type="date" id="periodTo">
+        </div>
+      </div>
+      <div class="field" style="align-self:end">
+        <label>&nbsp;</label>
+        <div class="note" style="margin:0">請求法人は下の表で <b>1区間ごと</b> に選びます。会社名はここでは選びません。</div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3><span class="n">2</span>明細：区間ごとに請求法人を選択</h3>
+    <div class="bulk">
+      <label style="display:flex;align-items:center;gap:6px;font-size:13px;font-weight:700">
+        <input type="checkbox" id="chkAll" style="width:16px;height:16px"> 全選択
+      </label>
+      <select id="bulkCo"><option value="">▼ 法人を選択</option></select>
+      <button class="btn btn-ghost small" id="btnApplySel">選択行に適用</button>
+      <button class="btn btn-ghost small" id="btnApplyAll">全行に適用</button>
+      <span class="sel-count" id="selCount"></span>
+      <span class="spacer"></span>
+      <button class="btn btn-green small" id="btnAddRow">＋ 手入力で追加</button>
+      <button class="btn btn-ghost small" id="btnClear">クリア</button>
+    </div>
+    <div class="tbl-wrap">
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th style="width:34px"></th>
+            <th style="width:34px">No.</th>
+            <th style="width:104px">利用日</th>
+            <th>区間・内容</th>
+            <th style="width:120px">行き先</th>
+            <th style="width:170px">請求法人</th>
+            <th style="width:110px">路線</th>
+            <th style="width:90px">金額(円)</th>
+            <th style="width:70px">計上</th>
+            <th style="width:34px"></th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+        <tfoot><tr><td colspan="7">計上分 合計</td><td class="total" id="totalCell">0</td><td colspan="2"></td></tr></tfoot>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h3><span class="n">3</span>法人別の集計と出力</h3>
+    <div id="coChecklist"></div>
+    <div id="coHint"></div>
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn btn-primary" id="btnExcel">Excel を出力</button>
+      <button class="btn btn-ghost" id="btnPdf">PDF（印刷）で出力</button>
+    </div>
+    <div class="note">複数の法人が使われている場合は、<b>法人ごとに1ファイル</b>に分けて出力します（Excelは自動でZIPにまとめ、PDFは法人ごとにページを分けます）。上のチェックで出力する法人を選べます。未設定の行は出力から除外されます。</div>
+  </section>
+
+  <details class="log">
+    <summary>詳細ログ（トラブル時にAIへ貼り付けてください）</summary>
+    <div id="log">起動しました。</div>
+  </details>
+</div>
+
+<div id="printArea" class="hidden"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const COMPANIES = ["ロハスミッション株式会社","日本介護事業株式会社","有限会社ジェイリート","株式会社ソーケイ"];
+const state = { records: [], integrity:{valid:true,checked_rows:0,anomalies:[]}, cardId:"" };
+function log(){ const a=[].slice.call(arguments); const el=$('#log'); el.textContent += "\n"+a.map(x=>typeof x==='object'?JSON.stringify(x):x).join(' '); el.scrollTop=el.scrollHeight; }
+function hex(b){ return Array.from(b,x=>x.toString(16).padStart(2,'0')).join(' '); }
+function toBytes(a){ return new Uint8Array(a); }
+function concat(){ const as=[].slice.call(arguments); const n=as.reduce((s,a)=>s+a.length,0),o=new Uint8Array(n); let p=0; for(const a of as){o.set(a,p);p+=a.length;} return o; }
+function escHtml(s){ return (s==null?'':s).toString().replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+const RCS300 = (() => {
+  let device=null, epOut=0, epIn=0, iface=0, seq=0;
+  function frame(payload){ const len=payload.length;
+    const head=toBytes([0x6b,len&0xff,(len>>8)&0xff,(len>>16)&0xff,(len>>24)&0xff,0x00,(seq++)&0xff,0x00,0x00,0x00]);
+    return concat(head,payload); }
+  function thru(felicaCmd){
+    const timeout=toBytes([0xa0,0x86,0x01,0x00]), flen=felicaCmd.length;
+    const fhead=concat(toBytes([0x5f,0x46,0x04]),timeout,toBytes([0x95,0x82,(flen>>8)&0xff,flen&0xff]));
+    const data=concat(fhead,felicaCmd), dlen=data.length;
+    return concat(toBytes([0xff,0x50,0x00,0x01,0x00,(dlen>>8)&0xff,dlen&0xff]),data,toBytes([0x00,0x00,0x00])); }
+  function ctrl(b){ return toBytes(b); }
+  async function send(payload){ const f=frame(payload); log('→',hex(f)); await device.transferOut(epOut,f);
+    const r=await device.transferIn(epIn,512); const resp=new Uint8Array(r.data.buffer); log('←',hex(resp)); return resp; }
+  async function connect(){
+    device=await navigator.usb.requestDevice({filters:[{vendorId:0x054c}]});
+    await device.open(); if(!device.configuration) await device.selectConfiguration(1);
+    for(const cfg of device.configurations) for(const itf of cfg.interfaces) for(const alt of itf.alternates){
+      let inE=0,outE=0;
+      for(const ep of alt.endpoints){ if(ep.type==='bulk'&&ep.direction==='in')inE=ep.endpointNumber; if(ep.type==='bulk'&&ep.direction==='out')outE=ep.endpointNumber; }
+      if(inE&&outE){ iface=itf.interfaceNumber; epIn=inE; epOut=outE; } }
+    if(!epIn||!epOut) throw new Error('バルクエンドポイント未検出（RC-S300以外の可能性）');
+    await device.claimInterface(iface);
+    log('接続 PID=0x'+device.productId.toString(16)+' iface='+iface+' in='+epIn+' out='+epOut);
+    await send(ctrl([0xff,0x50,0x00,0x00,0x02,0x81,0x00,0x00,0x00]));
+    await send(ctrl([0xff,0x50,0x00,0x00,0x02,0x83,0x00,0x00,0x00]));
+    await send(ctrl([0xff,0x50,0x00,0x00,0x02,0x84,0x00,0x00,0x00]));
+    return device; }
+  function extractFelica(resp){ for(let i=0;i<resp.length-1;i++){ if(resp[i]===0x97){ const len=resp[i+1]; return resp.slice(i+2,i+2+len);} } return null; }
+  async function pollingSuica(){ const resp=await send(thru(toBytes([0x06,0x00,0x00,0x03,0x01,0x00])));
+    const fr=extractFelica(resp); if(!fr||fr[1]!==0x01) throw new Error('ポーリング失敗（Suicaを載せてください）');
+    const idm=fr.slice(2,10); log('IDm:',hex(idm)); return idm; }
+  async function readBlock(idm,n){ const cmd=concat(toBytes([0x10,0x06]),idm,toBytes([0x01,0x0f,0x09,0x01,0x80,n]));
+    const resp=await send(thru(cmd)); const fr=extractFelica(resp);
+    if(!fr||fr[1]!==0x07||fr[2]!==0x00||fr[3]!==0x00) return null; return fr.slice(5,5+16); }
+  async function readHistory(){ const idm=await pollingSuica(); const blocks=[];
+    for(let b=0;b<20;b++){ const blk=await readBlock(idm,b); if(!blk) break; blocks.push(blk); log('block '+b+':',hex(blk)); } return {idm,blocks}; }
+  async function disconnect(){ try{await send(ctrl([0xff,0x50,0x00,0x00,0x02,0x82,0x00,0x00,0x00]));}catch(e){} try{await device.close();}catch(e){} device=null; }
+  return { connect, readHistory, disconnect };
+})();
+
+const STATION_MASTER = {};
+function resolveStation(line,sta){ return STATION_MASTER[line+'-'+sta]||""; }
+function parseSuicaBlocks(blocks,idm){
+  const rows=blocks.map(b=>{ const dRaw=(b[4]<<8)|b[5];
+    const y=2000+((dRaw>>9)&0x7f),mo=(dRaw>>5)&0x0f,d=dRaw&0x1f;
+    const date=(mo>=1&&d>=1)?(y+'/'+String(mo).padStart(2,'0')+'/'+String(d).padStart(2,'0')):"";
+    return {dev:b[0],proc:b[1],lineIn:b[6],staIn:b[7],lineOut:b[8],staOut:b[9],balance:(b[11]<<8)|b[10],date}; });
+  const recs=[];
+  for(let i=0;i<rows.length;i++){ const cur=rows[i],older=rows[i+1]; if(!older) continue;
+    const amount=older.balance-cur.balance; if(amount<=0) continue;
+    if(cur.proc===0x46||cur.proc===0xc6) continue;
+    const sIn=resolveStation(cur.lineIn,cur.staIn),sOut=resolveStation(cur.lineOut,cur.staOut);
+    const route=(sIn||sOut)?((sIn||'?')+' → '+(sOut||'?')):('（線区'+cur.lineIn+'-駅'+cur.staIn+'）');
+    recs.push({date:cur.date,route,line_in:"",line_out:"",station_in:sIn,station_out:sOut,amount,
+      memo:"",destination:"",company_name:"",is_expense:true,is_manual:false,idm:idm||""}); }
+  recs.reverse();
+  const anomalies=[]; let checked=0;
+  for(let i=0;i<rows.length-1;i++){ if(isNaN(rows[i].balance)||isNaN(rows[i+1].balance)) continue; checked++;
+    if(rows[i].balance<0||rows[i+1].balance<0) anomalies.push({row:i,note:'負の残高'}); }
+  return { records:recs, integrity:{valid:anomalies.length===0,checked_rows:checked,anomalies} };
+}
+
+function parseCSV(text){
+  const lines=text.split(/\r?\n/); let cardId="",headerRow=-1;
+  if(lines[0]&&lines[0].includes("カードID")) cardId=lines[0].trim();
+  for(let i=0;i<lines.length;i++){ if(lines[i].includes("利用年月日")){headerRow=i;break;} }
+  if(headerRow<0) throw new Error("ヘッダー行（利用年月日）が見つかりません。SFCard Viewer 2 のCSVをご確認ください。");
+  const rows=lines.slice(headerRow).filter(l=>l.trim()!=="").map(l=>l.split(","));
+  const head=rows[0].map(h=>h.trim()); const idx=n=>head.indexOf(n);
+  const col=function(r){ const ns=[].slice.call(arguments,1); for(const n of ns){ const j=idx(n); if(j>=0&&r[j]!=null) return String(r[j]).trim(); } return ""; };
+  const balCol=idx("残高(円)")>=0?"残高(円)":(idx("残額(円)")>=0?"残額(円)":null);
+  const data=rows.slice(1).map(r=>({
+    date:col(r,"利用年月日"),teiki:col(r,"定期"),lineIn:col(r,"鉄道会社名"),
+    staIn:col(r,"入場駅/乗定期","入場駅/事業者名"),
+    lineOut: idx("鉄道会社名.1")>=0?String(r[idx("鉄道会社名.1")]||"").trim():"",
+    staOut:col(r,"出場駅/降定期","出場駅/降車場所"),
+    amount:parseInt(col(r,"利用額(円)").replace(/,/g,""))||0,
+    balance: balCol?parseInt(col(r,balCol).replace(/,/g,"")):NaN, memo:col(r,"メモ")
+  })).filter(x=>/^\d{4}/.test(x.date));
+  const anomalies=[]; let checked=0;
+  for(let i=0;i<data.length-1;i++){ const b=data[i].balance,bn=data[i+1].balance,a=data[i].amount;
+    if(isNaN(b)||isNaN(bn)||isNaN(a)) continue; checked++;
+    if(bn-a!==b) anomalies.push({row_index:i,date:data[i].date,amount:a,recorded_balance:b,expected_balance:bn-a,diff:b-(bn-a)}); }
+  const integrity={valid:anomalies.length===0,checked_rows:checked,anomalies};
+  const seen=new Set(),recs=[];
+  const filtered=data.filter(x=>{ if(x.amount<=0)return false; if(/定期/.test(x.teiki))return false;
+    if(/物販|磁気券購入/.test(x.memo))return false; return x.staIn!==""||/バス|路面/.test(x.memo); }).reverse();
+  for(const x of filtered){ const route=(x.staIn&&x.staOut)?(x.staIn+' → '+x.staOut):(x.memo||"不明");
+    const key=[x.date,x.staIn,x.staOut,x.amount,x.memo].join("|"); if(seen.has(key))continue; seen.add(key);
+    recs.push({date:x.date.replace(/-/g,"/"),route,line_in:x.lineIn,line_out:x.lineOut,station_in:x.staIn,station_out:x.staOut,
+      amount:x.amount,memo:/物販|磁気/.test(x.memo)?"":x.memo,destination:"",company_name:"",is_expense:true,is_manual:false,idm:cardId||""}); }
+  recs.sort((a,b)=>a.date.localeCompare(b.date));
+  return { cardId, records:recs, integrity };
+}
+
+function coBadge(co){ const i=COMPANIES.indexOf(co); return {cls:i>=0?'co-'+i:'co-none',i}; }
+function render(){
+  const tb=$('#tbody'); tb.innerHTML="";
+  state.records.forEach((r,i)=>{
+    const tr=document.createElement('tr');
+    tr.className=(r.is_manual?'manual ':'')+(r.is_expense?'':'excluded');
+    const cell=(val,key,align,num)=>'<td class="edit"><input value="'+escHtml(val)+'" data-i="'+i+'" data-k="'+key+'" style="text-align:'+(num?'right':(align||'center'))+'"></td>';
+    const coOpts='<option value="">（未設定）</option>'+COMPANIES.map(c=>'<option value="'+escHtml(c)+'" '+(r.company_name===c?'selected':'')+'>'+escHtml(c)+'</option>').join('');
+    const line=[r.line_in,r.line_out].filter(Boolean).join(' / ')||'-';
+    tr.innerHTML=
+      '<td><input type="checkbox" class="rowchk" data-i="'+i+'" style="width:16px;height:16px"></td>'+
+      '<td>'+(i+1)+'</td>'+
+      cell(r.date,'date')+
+      cell(r.route,'route','left')+
+      cell(r.destination,'destination','left')+
+      '<td><select class="co-select" data-i="'+i+'">'+coOpts+'</select></td>'+
+      '<td style="font-size:12px;color:#666">'+escHtml(line)+'</td>'+
+      cell(r.amount,'amount','right',true)+
+      '<td><button class="tg '+(r.is_expense?'on':'off')+'" data-tg="'+i+'">'+(r.is_expense?'✓ 計上':'除外')+'</button></td>'+
+      '<td><button class="del" data-del="'+i+'" title="削除">×</button></td>';
+    tb.appendChild(tr);
+  });
+  recalcTotal(); wireRows(); updateSelCount(); renderChecklist();
+}
+function recalcTotal(){ const t=state.records.filter(r=>r.is_expense).reduce((s,r)=>s+(parseInt(r.amount)||0),0); $('#totalCell').textContent=t.toLocaleString(); }
+function wireRows(){
+  const tb=$('#tbody');
+  tb.querySelectorAll('input[data-k]').forEach(inp=>inp.addEventListener('input',e=>{
+    const i=+e.target.dataset.i,k=e.target.dataset.k;
+    state.records[i][k]=(k==='amount')?(parseInt(e.target.value.replace(/,/g,''))||0):e.target.value;
+    save(); if(k==='amount'){ recalcTotal(); renderChecklist(); } }));
+  tb.querySelectorAll('.co-select').forEach(sel=>sel.addEventListener('change',e=>{ state.records[+e.target.dataset.i].company_name=e.target.value; save(); renderChecklist(); }));
+  tb.querySelectorAll('.tg').forEach(b=>b.addEventListener('click',e=>{ const i=+e.target.dataset.tg; state.records[i].is_expense=!state.records[i].is_expense; save(); render(); }));
+  tb.querySelectorAll('.del').forEach(b=>b.addEventListener('click',e=>{ state.records.splice(+e.target.dataset.del,1); save(); render(); }));
+  tb.querySelectorAll('.rowchk').forEach(cb=>cb.addEventListener('change',updateSelCount));
+}
+function selectedIdx(){ return Array.from($('#tbody').querySelectorAll('.rowchk:checked')).map(cb=>+cb.dataset.i); }
+function updateSelCount(){ const c=selectedIdx().length,t=$('#tbody').querySelectorAll('.rowchk').length;
+  $('#selCount').textContent=c>0?(c+'/'+t+'行選択中'):''; const all=$('#chkAll'); all.checked=t>0&&c===t; all.indeterminate=c>0&&c<t; }
+
+function companyMap(){ const m={}; state.records.filter(r=>r.is_expense).forEach(r=>{ const co=r.company_name||"";
+  if(!m[co]) m[co]={count:0,total:0}; m[co].count++; m[co].total+=(parseInt(r.amount)||0); }); return m; }
+function renderChecklist(){
+  const m=companyMap(); const used=Object.keys(m); const cl=$('#coChecklist'); const hint=$('#coHint');
+  const nonEmpty=used.filter(c=>c!=="");
+  if(nonEmpty.length===0){ const t=(m['']&&m[''].total)||0,c=(m['']&&m[''].count)||0;
+    cl.innerHTML='<div class="allmode"><b>✓ 全件まとめて1つの精算書で出力します</b>（'+c+'件・¥'+t.toLocaleString()+'）<br>'+
+      '<span style="font-size:11px;color:#888">法人ごとに分けるには、上の表の「請求法人」列で各行に会社を設定してください。</span></div>';
+    hint.innerHTML=''; return; }
+  const unset=m['']; hint.innerHTML=unset?('<span style="color:#c0392b;font-weight:700">⚠ 法人未設定の明細が '+unset.count+'件あります。出力から除外されます。</span>'):'';
+  cl.innerHTML=nonEmpty.map((co,k)=>{ const bd=coBadge(co);
+    return '<div class="co-check"><input type="checkbox" class="cochk" id="cc-'+k+'" value="'+escHtml(co)+'" checked>'+
+      '<label for="cc-'+k+'"><span class="co-badge '+bd.cls+'">'+escHtml(co)+'</span></label>'+
+      '<span class="cc-count">'+m[co].count+'件</span><span class="cc-amount">¥'+m[co].total.toLocaleString()+'</span></div>'; }).join('');
+}
+function selectedCompanies(){ return Array.from($('#coChecklist').querySelectorAll('.cochk:checked')).map(c=>c.value); }
+
+function showIntegrity(){ const el=$('#integrity'),ig=state.integrity;
+  if(!ig||ig.checked_rows===0){ el.className='banner'; el.textContent=''; return; }
+  if(ig.valid){ el.className='banner ok'; el.textContent='✓ 残高チェイン検証OK（'+ig.checked_rows+'件）— 履歴に不整合はありません。'; }
+  else{ el.className='banner bad'; el.textContent='⚠ 残高の不整合を '+ig.anomalies.length+' 件検出しました。改ざん・欠損の可能性があります。'; } }
+
+function meta(){ return { name:$('#empName').value, dept:$('#dept').value,
+  from:$('#periodFrom').value.replace(/-/g,'/'), to:$('#periodTo').value.replace(/-/g,'/'),
+  submitted:new Date().toLocaleDateString('ja-JP') }; }
+function recordsForCompany(co){ return state.records.filter(r=>r.is_expense && (r.company_name||"")===co); }
+function rowsAoa(recs){ return recs.map((r,i)=>[i+1,r.date,r.route,r.destination||"",r.line_in||"",r.line_out||"",r.memo||"",r.is_manual?"手入力":"Suica/PASMO",parseInt(r.amount)||0]); }
+function sheetForCompany(co,recs){
+  const m=meta(),body=rowsAoa(recs),total=body.reduce((s,r)=>s+r[8],0),aoa=[];
+  aoa.push([(co?co+'　':'')+'交通費精算書']);
+  aoa.push(['提出日：'+m.submitted]); aoa.push([]);
+  aoa.push(["所属部署",m.dept,"","氏名",m.name]);
+  aoa.push(["精算期間",m.from+'  〜  '+m.to]); aoa.push([]);
+  aoa.push(["No.","利用日","区間（乗車駅 → 降車駅）","行き先","路線(入)","路線(出)","備考","取得方法","金額(円)"]);
+  body.forEach(r=>aoa.push(r));
+  aoa.push(["","","","","","","","合　計",total]); aoa.push([]);
+  aoa.push(["【取得方法】 Suica/PASMO = リーダー自動取込　手入力 = 担当者が手入力"]); aoa.push([]);
+  aoa.push(["申請者印","","確認","","承認",""]);
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:5},{wch:12},{wch:26},{wch:14},{wch:12},{wch:12},{wch:12},{wch:12},{wch:12}];
+  ws['!merges']=[{s:{r:0,c:0},e:{r:0,c:8}},{s:{r:1,c:0},e:{r:1,c:8}},{s:{r:6+body.length,c:0},e:{r:6+body.length,c:7}}];
+  return ws;
+}
+async function exportExcel(){
+  const companies=getOutputCompanies(); if(!companies) return;
+  const m0=meta();
+  postAudit({ type:'submit', session_id:uuid(), employee:m0.name, dept:m0.dept,
+    period_from:m0.from, period_to:m0.to, export_type:'Excel',
+    records: state.records.filter(r=>r.is_expense) });
+  const m=meta(); const period=(m.from||'').replace(/\//g,'');
+  if(companies.length===1){ const co=companies[0]; const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,sheetForCompany(co,recordsForCompany(co)),"交通費精算書");
+    XLSX.writeFile(wb,'交通費精算_'+(m.name||'未入力')+'_'+(co||'全件')+'_'+period+'.xlsx'); log('Excel出力: 1社'); return; }
+  const zip=new JSZip();
+  for(const co of companies){ const wb=XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb,sheetForCompany(co,recordsForCompany(co)),"交通費精算書");
+    const buf=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+    zip.file('交通費精算_'+(m.name||'未入力')+'_'+co+'_'+period+'.xlsx',buf); }
+  const blob=await zip.generateAsync({type:'blob'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='交通費精算書_'+(m.name||'未入力')+'_'+period+'_全法人.zip'; a.click(); URL.revokeObjectURL(a.href);
+  log('Excel出力: '+companies.length+'社をZIP');
+}
+function companyPrintHtml(co,recs){
+  const m=meta(),body=rowsAoa(recs),total=body.reduce((s,r)=>s+r[8],0);
+  const rowsHtml=body.map(r=>'<tr><td>'+r[0]+'</td><td>'+r[1]+'</td><td class="l">'+escHtml(r[2])+'</td><td class="l">'+escHtml(r[3])+'</td><td class="l">'+escHtml(r[4])+'</td><td class="l">'+escHtml(r[5])+'</td><td class="l">'+escHtml(r[6])+'</td><td>'+r[7]+'</td><td class="r">'+r[8].toLocaleString()+'</td></tr>').join("");
+  return '<div class="page">'+
+    '<h1>'+(co?escHtml(co)+'　':'')+'交通費精算書</h1>'+
+    '<div class="sub">提出日：'+m.submitted+'</div>'+
+    '<table class="info"><tr><td class="k">所属部署</td><td>'+escHtml(m.dept)+'</td><td class="k">氏名</td><td>'+escHtml(m.name)+'</td></tr>'+
+    '<tr><td class="k">精算期間</td><td colspan="3">'+m.from+' 〜 '+m.to+'</td></tr></table>'+
+    '<table class="d"><thead><tr><th>No.</th><th>利用日</th><th>区間</th><th>行き先</th><th>路線(入)</th><th>路線(出)</th><th>備考</th><th>取得方法</th><th>金額</th></tr></thead>'+
+    '<tbody>'+rowsHtml+'<tr class="tot"><td colspan="8">合　計</td><td class="r">'+total.toLocaleString()+'</td></tr></tbody></table>'+
+    '<table class="sign"><tr><td>申請者印</td><td>確認</td><td>承認</td></tr></table></div>';
+}
+function exportPDF(){
+  const companies=getOutputCompanies(); if(!companies) return;
+  const m0=meta();
+  postAudit({ type:'submit', session_id:uuid(), employee:m0.name, dept:m0.dept,
+    period_from:m0.from, period_to:m0.to, export_type:'PDF',
+    records: state.records.filter(r=>r.is_expense) });
+  const pages=companies.map(co=>companyPrintHtml(co,recordsForCompany(co))).join('');
+  const style='<style>@media print{@page{size:A4;margin:14mm}.page{page-break-after:always}}'+
+    '.page{font-family:"BIZ UDPGothic",sans-serif;color:#222}'+
+    'h1{background:#C2511A;color:#fff;text-align:center;padding:10px;font-size:20px;margin:0}'+
+    '.sub{text-align:right;color:#666;font-size:11px;margin:4px 0 10px}'+
+    '.info{width:100%;border-collapse:collapse;margin-bottom:8px;font-size:12px}'+
+    '.info td{border:1px solid #C8C8C8;padding:5px 8px}.info .k{background:#FBE8D8;color:#C2511A;font-weight:700;width:80px;text-align:center}'+
+    'table.d{width:100%;border-collapse:collapse;font-size:11px}'+
+    'table.d th{background:#2E6B2A;color:#fff;border:1px solid #C8C8C8;padding:5px}'+
+    'table.d td{border:1px solid #C8C8C8;padding:4px 6px;text-align:center}table.d td.l{text-align:left}table.d td.r{text-align:right}'+
+    'table.d tr:nth-child(even){background:#FDF5F0}.tot td{background:#FBE8D8;color:#C2511A;font-weight:700}'+
+    '.sign{margin-top:16px;width:100%;border-collapse:collapse;font-size:12px}.sign td{border:1px solid #C8C8C8;height:52px;text-align:center;vertical-align:top;padding-top:4px}</style>';
+  const area=$('#printArea'); area.innerHTML=style+pages; area.classList.remove('hidden');
+  window.print(); setTimeout(()=>area.classList.add('hidden'),300);
+  log('PDF出力: '+companies.length+'社');
+}
+function getOutputCompanies(){
+  const exp=state.records.filter(r=>r.is_expense);
+  if(exp.length===0){ alert('計上する明細がありません。'); return null; }
+  const m=companyMap(); const nonEmpty=Object.keys(m).filter(c=>c!=="");
+  if(nonEmpty.length===0) return [""];
+  const sel=selectedCompanies();
+  if(sel.length===0){ alert('出力する法人にチェックを入れてください。'); return null; }
+  return sel;
+}
+
+$('#chkAll').addEventListener('change',e=>{ $('#tbody').querySelectorAll('.rowchk').forEach(cb=>cb.checked=e.target.checked); updateSelCount(); });
+$('#btnApplySel').addEventListener('click',()=>{ const co=$('#bulkCo').value; if(!co){alert('適用する法人を選択してください。');return;}
+  const idx=selectedIdx(); if(!idx.length){alert('行を選択してください（左端のチェック）。');return;}
+  idx.forEach(i=>state.records[i].company_name=co); save(); render();
+  idx.forEach(i=>{ const cb=$('#tbody').querySelector('.rowchk[data-i="'+i+'"]'); if(cb)cb.checked=true; }); updateSelCount(); });
+$('#btnApplyAll').addEventListener('click',()=>{ const co=$('#bulkCo').value; if(!co){alert('適用する法人を選択してください。');return;}
+  if(!confirm('計上中の全行を「'+co+'」に設定しますか？'))return;
+  state.records.forEach(r=>{ if(r.is_expense) r.company_name=co; }); save(); render(); });
+
+(function initBulk(){ $('#bulkCo').innerHTML='<option value="">▼ 法人を選択</option>'+COMPANIES.map(c=>'<option value="'+escHtml(c)+'">'+escHtml(c)+'</option>').join(''); })();
+(function envCheck(){ const note=$('#envNote');
+  if(!('usb' in navigator)){ note.innerHTML='※ このブラウザは WebUSB 非対応です。Chrome / Edge をお使いください（CSV取込は動きます）。'; $('#btnRead').disabled=true; }
+  else if(!window.isSecureContext){ note.innerHTML='※ 「かざして読取」は HTTPS（GitHub Pages等）か localhost でのみ動作します。プレビュー中はCSV取込をご利用ください。'; }
+  else{ note.innerHTML='※ 対応：Chrome / Edge。初回はリーダー選択ダイアログが出ます。'; } })();
+
+$('#btnRead').addEventListener('click',async()=>{
+  try{ document.body.classList.remove('connected'); $('#statusPill').textContent='● 接続中…'; $('#targetLbl').textContent='リーダー接続中';
+    await RCS300.connect(); document.body.classList.add('connected'); $('#statusPill').textContent='● リーダー接続済み'; $('#targetLbl').textContent='カードを載せてください';
+    document.body.classList.add('reading'); const r=await RCS300.readHistory(); document.body.classList.remove('reading');
+    if(!r.blocks.length) throw new Error('履歴が読めませんでした。カードの位置を調整して再試行してください。');
+    const p=parseSuicaBlocks(r.blocks, hex(r.idm)); state.integrity=p.integrity; mergeInto(p.records);
+    postAudit({ type:'read', session_id:uuid(), employee:$('#empName').value,
+      device:navigator.userAgent, idm:hex(r.idm), source:'直接読取', records:p.records });
+    $('#targetLbl').textContent=p.records.length+'件 読取完了'; showIntegrity(); render(); log('読取完了: '+p.records.length+'件');
+  }catch(e){ document.body.classList.remove('reading'); log('ERROR:',e.message); alert('読取に失敗しました：\n'+e.message+'\n\n詳細ログを確認してください。'); }
+  finally{ try{await RCS300.disconnect();}catch(e){} }
+});
+$('#btnCsv').addEventListener('click',()=>$('#csvFile').click());
+$('#csvFile').addEventListener('change',e=>{ const f=e.target.files[0]; if(!f)return; const rd=new FileReader();
+  rd.onload=()=>{ try{ let text; try{text=new TextDecoder('shift_jis').decode(rd.result);}catch(_){text=new TextDecoder('utf-8').decode(rd.result);}
+      if(!text.includes('利用年月日')) text=new TextDecoder('utf-8').decode(rd.result);
+      const p=parseCSV(text); state.integrity=p.integrity; state.cardId=p.cardId; mergeInto(p.records);
+      postAudit({ type:'read', session_id:uuid(), employee:$('#empName').value,
+        device:navigator.userAgent, idm:p.cardId||'', source:'CSV取込', records:p.records });
+      showIntegrity(); render(); log('CSV取込: '+p.records.length+'件');
+    }catch(err){ log('CSV ERROR:',err.message); alert('CSVの取込に失敗：\n'+err.message); } };
+  rd.readAsArrayBuffer(f); });
+$('#btnAddRow').addEventListener('click',()=>{ state.records.push({date:"",route:"",line_in:"",line_out:"",station_in:"",station_out:"",amount:0,memo:"",destination:"",company_name:"",is_expense:true,is_manual:true,idm:""}); save(); render();
+  const inp=$('#tbody').querySelector('tr:last-child input'); if(inp) inp.focus(); });
+$('#btnClear').addEventListener('click',()=>{ if(confirm('明細を全て消去します。よろしいですか？')){ state.records=[]; state.integrity={valid:true,checked_rows:0,anomalies:[]}; try{localStorage.removeItem(LS_KEY);}catch(e){} showIntegrity(); render(); } });
+$('#btnExcel').addEventListener('click',exportExcel);
+$('#btnPdf').addEventListener('click',exportPDF);
+
+/* ===== ブラウザ内保存（localStorage・追記＋重複排除） ===== */
+var LS_KEY='suica_expense_store_v1';
+function keyOf(r){ return [r.date,r.route,r.amount,r.idm||''].join('|'); }
+function save(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state.records)); }catch(e){ log('保存失敗:',e.message); } }
+function load(){ try{ var raw=localStorage.getItem(LS_KEY); if(raw){ var a=JSON.parse(raw); if(Array.isArray(a)) state.records=a; } }catch(e){} }
+function mergeInto(newRecs){
+  var seen={}; state.records.forEach(function(r){ seen[keyOf(r)]=true; });
+  var added=0;
+  newRecs.forEach(function(r){ var k=keyOf(r); if(!seen[k]){ state.records.push(r); seen[k]=true; added++; } });
+  state.records.sort(function(a,b){ return (a.date||'').localeCompare(b.date||''); });
+  save();
+  log('追加 '+added+'件 / 累計 '+state.records.length+'件（重複除外）');
+}
+/* ===== GAS不正検知ログ送信 ===== */
+const AUDIT = {
+  url: 'https://script.google.com/macros/s/AKfycbw0u9XWls42MRk-G4piQ7oe4wLKsnU84TFo136xB3Igaa9DQ3zLNQY-RT4pYEJr2otwoQ/exec',
+  token: 'vision2030'
+};
+function uuid(){ return (crypto.randomUUID ? crypto.randomUUID() : (Date.now()+'-'+Math.random().toString(16).slice(2))); }
+function postAudit(payload){
+  if(!AUDIT.url || AUDIT.url.indexOf('http')!==0){ return; }
+  fetch(AUDIT.url, {
+    method:'POST',
+    mode:'no-cors',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify(Object.assign({token:AUDIT.token}, payload))
+  }).catch(function(e){ log('監査ログ送信失敗（ネットワーク）:', e.message); });
+}
+
+load();
+
+render();
+</script>
+</body>
+</html>
