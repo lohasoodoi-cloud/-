@@ -136,8 +136,8 @@
   <section class="card">
     <h3><span class="n">1</span>申請者情報</h3>
     <div class="grid">
-      <div class="field"><label>氏名</label><input id="empName" placeholder="山田 太郎"></div>
-      <div class="field"><label>所属部署</label><input id="dept" placeholder="○○事業所"></div>
+      <div class="field"><label>氏名</label><input id="empName" list="empNameList" placeholder="山田 太郎"><datalist id="empNameList"></datalist></div>
+      <div class="field"><label>所属部署</label><input id="dept" list="deptList" placeholder="○○事業所"><datalist id="deptList"></datalist></div>
       <div class="field">
         <label>精算期間</label>
         <div style="display:flex;gap:8px;align-items:center">
@@ -176,8 +176,8 @@
             <th style="width:111px">区間・内容</th>
             <th style="width:136px">行き先</th>
             <th style="width:148px">請求法人</th>
-            <th style="width:56px">路線</th>
-            <th style="width:68px">備考</th>
+            <th style="width:64px">路線</th>
+            <th style="width:60px">備考</th>
             <th style="width:84px">取得方法</th>
             <th style="width:74px">金額(円)</th>
             <th style="width:62px">計上</th>
@@ -358,7 +358,7 @@ function render(){
     tr.className=(r.is_manual?'manual ':'')+(r.is_expense?'':'excluded');
     const cell=(val,key,align,num)=>'<td class="edit"><input value="'+escHtml(val)+'" data-i="'+i+'" data-k="'+key+'" style="text-align:'+(num?'right':(align||'center'))+'"></td>';
     const coOpts='<option value="">（未設定）</option>'+COMPANIES.map(c=>'<option value="'+escHtml(c)+'" '+(r.company_name===c?'selected':'')+'>'+escHtml(c)+'</option>').join('');
-    const line=[r.line_in,r.line_out].filter(Boolean).join(' / ')||'-';
+    const line=(r.line_in&&r.line_out&&r.line_in!==r.line_out)?(r.line_in+'/'+r.line_out):(r.line_in||r.line_out||'-');
     const sourceLabel=r.is_manual?'手入力':(r.idm?'Suica/PASMO':'CSV取込');
     const sourceBadge='<span class="src-badge '+(r.is_manual?'src-manual':'src-auto')+'">'+sourceLabel+'</span>';
     const amountCell=r.is_manual
@@ -371,7 +371,7 @@ function render(){
       cell(r.route,'route','left')+
       cell(r.destination,'destination','left')+
       '<td><select class="co-select" data-i="'+i+'">'+coOpts+'</select></td>'+
-      '<td style="font-size:12px;color:#666">'+escHtml(line)+'</td>'+
+      '<td style="font-size:10.5px;color:#666;overflow:hidden;text-overflow:ellipsis">'+escHtml(line)+'</td>'+
       cell(r.memo,'memo','left')+
       '<td>'+sourceBadge+'</td>'+
       amountCell+
@@ -740,6 +740,33 @@ function mergeInto(newRecs){
   save();
   log('追加 '+added+'件 / 累計 '+state.records.length+'件（重複除外）');
 }
+/* ===== 申請者情報の記憶（氏名・所属部署） =====
+   前回入力した氏名・所属部署を自動で復元し、
+   過去に入力した値を候補（オートコンプリート）として表示する。 */
+var PROFILE_KEY='suica_expense_profile_v1';
+var NAME_HIST_KEY='suica_expense_name_hist_v1';
+var DEPT_HIST_KEY='suica_expense_dept_hist_v1';
+function loadList(key){ try{ var raw=localStorage.getItem(key); var a=raw?JSON.parse(raw):[]; return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function saveList(key,arr){ try{ localStorage.setItem(key, JSON.stringify(arr.slice(0,10))); }catch(e){} }
+function pushHistory(key,val){ if(!val) return; var arr=loadList(key).filter(function(v){ return v!==val; }); arr.unshift(val); saveList(key,arr); }
+function renderDatalist(listId,key){ var dl=$('#'+listId); if(!dl) return; dl.innerHTML=loadList(key).map(function(v){ return '<option value="'+escHtml(v)+'">'; }).join(''); }
+function saveProfile(){
+  var name=$('#empName').value, dept=$('#dept').value;
+  try{ localStorage.setItem(PROFILE_KEY, JSON.stringify({name:name,dept:dept})); }catch(e){}
+}
+function initProfileFields(){
+  renderDatalist('empNameList',NAME_HIST_KEY);
+  renderDatalist('deptList',DEPT_HIST_KEY);
+  try{
+    var raw=localStorage.getItem(PROFILE_KEY);
+    if(raw){ var p=JSON.parse(raw); if(p.name&&!$('#empName').value) $('#empName').value=p.name; if(p.dept&&!$('#dept').value) $('#dept').value=p.dept; }
+  }catch(e){}
+}
+$('#empName').addEventListener('input',saveProfile);
+$('#dept').addEventListener('input',saveProfile);
+$('#empName').addEventListener('change',function(){ pushHistory(NAME_HIST_KEY,$('#empName').value.trim()); renderDatalist('empNameList',NAME_HIST_KEY); });
+$('#dept').addEventListener('change',function(){ pushHistory(DEPT_HIST_KEY,$('#dept').value.trim()); renderDatalist('deptList',DEPT_HIST_KEY); });
+
 /* ===== GAS不正検知ログ送信 ===== */
 const AUDIT = {
   url: 'https://script.google.com/macros/s/AKfycbw0u9XWls42MRk-G4piQ7oe4wLKsnU84TFo136xB3Igaa9DQ3zLNQY-RT4pYEJr2otwoQ/exec',
@@ -757,6 +784,7 @@ function postAudit(payload){
 }
 
 load();
+initProfileFields();
 
 render();
 </script>
