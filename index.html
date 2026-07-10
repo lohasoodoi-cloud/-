@@ -64,12 +64,13 @@
   .bulk .sel-count{font-size:12px;color:var(--gray)}
   .spacer{flex:1}
   .tbl-wrap{overflow-x:auto;margin-top:6px}
+  #tbl{table-layout:fixed;width:100%;min-width:900px}
   table{border-collapse:collapse;width:100%;font-size:13px;min-width:940px}
   th,td{border:1px solid var(--line);padding:6px 8px;text-align:center;white-space:nowrap}
   thead th{background:var(--green-dark);color:#fff;font-size:12px;font-weight:700}
   tbody tr:nth-child(even){background:var(--orange-tint)}
   tbody tr.manual{background:var(--manual-bg)}
-  .src-badge{display:inline-block;padding:2px 8px;border-radius:10px;font-size:11px;font-weight:600;white-space:nowrap}
+  .src-badge{display:inline-block;padding:2px 5px;border-radius:9px;font-size:8px;font-weight:600;white-space:nowrap}
   .src-manual{background:var(--blue);color:#fff}
   .src-auto{background:var(--green-light);color:var(--green-dark)}
   tbody tr.excluded{opacity:.45}
@@ -169,21 +170,22 @@
       <table id="tbl">
         <thead>
           <tr>
-            <th style="width:34px"></th>
-            <th style="width:34px">No.</th>
-            <th style="width:104px">利用日</th>
-            <th>区間・内容</th>
-            <th style="width:120px">行き先</th>
-            <th style="width:170px">請求法人</th>
-            <th style="width:110px">路線</th>
-            <th style="width:80px">取得方法</th>
-            <th style="width:90px">金額(円)</th>
-            <th style="width:70px">計上</th>
-            <th style="width:34px"></th>
+            <th style="width:26px"></th>
+            <th style="width:28px">No.</th>
+            <th style="width:82px">利用日</th>
+            <th style="width:111px">区間・内容</th>
+            <th style="width:136px">行き先</th>
+            <th style="width:148px">請求法人</th>
+            <th style="width:56px">路線</th>
+            <th style="width:68px">備考</th>
+            <th style="width:84px">取得方法</th>
+            <th style="width:74px">金額(円)</th>
+            <th style="width:62px">計上</th>
+            <th style="width:26px"></th>
           </tr>
         </thead>
         <tbody id="tbody"></tbody>
-        <tfoot><tr><td colspan="8">計上分 合計</td><td class="total" id="totalCell">0</td><td colspan="2"></td></tr></tfoot>
+        <tfoot><tr><td colspan="9">計上分 合計</td><td class="total" id="totalCell">0</td><td colspan="2"></td></tr></tfoot>
       </table>
     </div>
   </section>
@@ -370,6 +372,7 @@ function render(){
       cell(r.destination,'destination','left')+
       '<td><select class="co-select" data-i="'+i+'">'+coOpts+'</select></td>'+
       '<td style="font-size:12px;color:#666">'+escHtml(line)+'</td>'+
+      cell(r.memo,'memo','left')+
       '<td>'+sourceBadge+'</td>'+
       amountCell+
       '<td><button class="tg '+(r.is_expense?'on':'off')+'" data-tg="'+i+'">'+(r.is_expense?'✓ 計上':'除外')+'</button></td>'+
@@ -453,10 +456,10 @@ async function buildCompanyWorkbook(co,recs,password){
   recs.forEach((rec,i)=>{
     ws.row(r).height(20);
     const manual=!!rec.is_manual, bg=manual?XC.MB:(i%2===0?XC.ST:null);
-    const put=(col,v,align,num,color)=>{const c=ws.row(r).cell(col);c.value(v);const s={fontColor:color||XC.TD,verticalAlignment:'center',border:xbd(),fontSize:10,horizontalAlignment:num?'right':(align||'center')};if(align==='left')s.indent=1;if(bg)s.fill=bg;if(num)s.numberFormat='#,##0';c.style(s);};
+    const put=(col,v,align,num,color,fsize)=>{const c=ws.row(r).cell(col);c.value(v);const s={fontColor:color||XC.TD,verticalAlignment:'center',border:xbd(),fontSize:fsize||10,horizontalAlignment:num?'right':(align||'center')};if(align==='left')s.indent=1;if(bg)s.fill=bg;if(num)s.numberFormat='#,##0';c.style(s);};
     put(1,i+1); put(2,rec.date); put(3,rec.route,'left'); put(4,rec.destination||'','left');
     put(5,rec.line_in||'','left'); put(6,rec.line_out||'','left'); put(7,rec.memo||'','left');
-    put(8,manual?'手入力':'Suica/PASMO','center',false,manual?XC.TB:XC.TD);
+    put(8,manual?'手入力':'Suica/PASMO','center',false,manual?XC.TB:XC.TD,7);
     put(9,parseInt(rec.amount)||0,'right',true);
     r++;
   });
@@ -581,7 +584,7 @@ function drawCompanyCanvas(co,recs){
   pdfCell(ctx,x,y,labelW,7*K,'精算期間',{fill:OL,color:OD,bold:true,size:2.2*K});
   pdfCell(ctx,x+labelW,y,cw-labelW,7*K,(m.from||'')+'  ~  '+(m.to||''),{size:2.2*K});
   y+=11*K;
-  const cols=[10,22,48,22,22,18,16,12].map(v=>v*K);
+  const cols=[10,22,36,22,22,18,16,24].map(v=>v*K);
   const heads=['No.','利用日','区間(乗車駅→降車駅)','行き先','路線','備考','取得方法','金額'];
   let cx=x;
   heads.forEach((h,i)=>{ pdfCell(ctx,cx,y,cols[i],6*K,h,{fill:GD,color:'#fff',bold:true,size:1.9*K}); cx+=cols[i]; });
@@ -597,7 +600,7 @@ function drawCompanyCanvas(co,recs){
     const vals=[i+1,r.date,r.route,r.destination||'',line,r.memo||'',r.is_manual?'手入力':'Suica/PASMO',amount.toLocaleString()];
     cx=x;
     vals.forEach((v,j)=>{
-      pdfCell(ctx,cx,y,cols[j],rowH,v,{fill:fill,size:2*K,align:(j===2||j===3||j===5)?'left':(j===7?'right':'center'),color:r.is_manual&&j===6?'#1A5FA8':'#222',bold:r.is_manual&&j===6});
+      pdfCell(ctx,cx,y,cols[j],rowH,v,{fill:fill,size:j===6?1.5*K:2*K,align:(j===2||j===3||j===5)?'left':(j===7?'right':'center'),color:r.is_manual&&j===6?'#1A5FA8':'#222',bold:r.is_manual&&j===6});
       cx+=cols[j];
     });
     y+=rowH;
@@ -675,7 +678,7 @@ $('#btnRead').addEventListener('click',async()=>{
     if(!r.blocks.length) throw new Error('履歴が読めませんでした。カードの位置を調整して再試行してください。');
     const p=parseSuicaBlocks(r.blocks, hex(r.idm)); state.integrity=p.integrity; mergeInto(p.records);
     postAudit({ type:'read', session_id:uuid(), employee:$('#empName').value,
-      device:navigator.userAgent, idm:hex(r.idm), source:'直接読取', records:p.records });
+      device:navigator.userAgent, idm:hex(r.idm), source:'直接読取', records:p.records, integrity:p.integrity });
     $('#targetLbl').textContent=p.records.length+'件 読取完了'; showIntegrity(); render(); log('読取完了: '+p.records.length+'件');
   }catch(e){ document.body.classList.remove('reading'); log('ERROR:',e.message); alert('読取に失敗しました：\n'+e.message+'\n\n詳細ログを確認してください。'); }
   finally{ try{await RCS300.disconnect();}catch(e){} }
@@ -711,7 +714,7 @@ async function handleCsvFiles(fileList){
     if(lastIntegrity) state.integrity=lastIntegrity; if(lastCardId) state.cardId=lastCardId;
     mergeInto(allRecords);
     postAudit({ type:'read', session_id:uuid(), employee:$('#empName').value,
-      device:navigator.userAgent, idm:lastCardId||'', source:'CSV取込', records:allRecords });
+      device:navigator.userAgent, idm:lastCardId||'', source:'CSV取込', records:allRecords, integrity:lastIntegrity });
     showIntegrity(); render();
   }
   let msg=okCount+'件のファイルを取込み、計'+allRecords.length+'件を読み込みました。';
