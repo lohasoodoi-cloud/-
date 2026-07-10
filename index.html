@@ -531,20 +531,22 @@ function pdfText(ctx,text,x,y,w,h,opt){
   opt=opt||{};
   const s=String(text==null?'':text);
   ctx.fillStyle=opt.color||'#222222';
-  ctx.textBaseline='middle';
+  const isTop=opt.valign==='top';
+  ctx.textBaseline=isTop?'top':'middle';
   ctx.textAlign=opt.align||'center';
   pdfCanvasFont(ctx,opt.size||30,opt.bold);
   let tx=x+w/2;
   if(opt.align==='left') tx=x+(opt.pad||8);
   if(opt.align==='right') tx=x+w-(opt.pad||8);
+  const ty=isTop?(y+(opt.padTop!=null?opt.padTop:8)):(y+h/2);
   const maxW=w-(opt.pad||8)*2;
-  if(ctx.measureText(s).width<=maxW){ ctx.fillText(s,tx,y+h/2); return; }
+  if(ctx.measureText(s).width<=maxW){ ctx.fillText(s,tx,ty); return; }
   let out='';
   for(const ch of s){
     if(ctx.measureText(out+ch).width>maxW){ break; }
     out+=ch;
   }
-  ctx.fillText(out,tx,y+h/2);
+  ctx.fillText(out,tx,ty);
 }
 function pdfCell(ctx,x,y,w,h,text,opt){
   opt=opt||{};
@@ -606,7 +608,7 @@ function drawCompanyCanvas(co,recs){
   pdfText(ctx,'【取得方法】 Suica/PASMO = カードリーダーから自動取込　手入力 = 担当者が手動で入力',x,y,cw,5*K,{align:'left',color:'#666',size:1.8*K});
   y+=9*K;
   ['申請者','確認','承認'].forEach((t,i)=>{
-    pdfCell(ctx,x+cw/3*i,y,cw/3,15*K,t,{fill:GL,color:OD,bold:true,size:2.2*K});
+    pdfCell(ctx,x+cw/3*i,y,cw/3,15*K,t,{fill:GL,color:OD,bold:true,size:2.2*K,valign:'top',padTop:2.5*K});
   });
   return c;
 }
